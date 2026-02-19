@@ -1,0 +1,207 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Discord Clone</title>
+<link rel="icon" type="image/png" href="favicon.png">
+<style>
+body { margin:0; font-family:'Segoe UI',sans-serif; background:#36393f; color:white; display:flex; height:100vh; }
+.sidebar { width:240px; background:#2f3136; padding:15px; display:flex; flex-direction:column; }
+.sidebar h3 { color:#8e9297; font-size:12px; margin-bottom:10px; text-transform:uppercase; }
+.channel { padding:6px 10px; border-radius:4px; cursor:pointer; color:#b9bbbe; transition:.15s; }
+.channel:hover { background:#40444b; color:white; }
+.edit-profile { margin-top:auto; background:#40444b; text-align:center; padding:8px; border-radius:4px; cursor:pointer; }
+.edit-profile:hover { background:#5865f2; }
+.chat { flex:1; display:flex; flex-direction:column; }
+.header { padding:15px; background:#2f3136; font-weight:bold; border-bottom:1px solid #202225; }
+.messages { flex:1; padding:20px; overflow-y:auto; }
+.message { margin-bottom:15px; padding-bottom:10px; border-bottom:1px solid #40444b; }
+.username { font-weight:bold; cursor:pointer; color:#7289da; }
+.username:hover { text-decoration:underline; }
+.input-area { padding:10px 15px; background:#40444b; display:flex; }
+input { flex:1; padding:10px; border-radius:4px; border:none; background:#303339; color:white; }
+button { margin-top:6px; padding:8px 12px; border-radius:4px; border:none; background:#7289da; color:white; cursor:pointer; }
+button:hover { background:#5865f2; }
+.typing-indicator { font-size:12px; color:#b9bbbe; margin-left:5px; font-style:italic; }
+</style>
+</head>
+<body>
+
+
+<div class="sidebar">
+  <h3>TEXT CHANNELS</h3>
+  <div class="channel" onclick="switchChannel('general')"># general</div>
+  <div class="channel" onclick="switchChannel('gaming')"># gaming</div>
+  <div class="channel" onclick="switchChannel('coding')"># coding</div>
+  <div class="channel" onclick="switchChannel('stats')"># stats</div>
+  <div class="channel" onclick="switchChannel('shop')"># shop</div>
+  <div class="edit-profile" onclick="openProfileEditor()">⚙ Edit Profile</div>
+</div>
+
+
+<div class="chat">
+  <div class="header" id="channelName"># general</div>
+  <div class="messages" id="messages"></div>
+  <div class="input-area">
+    <input id="messageInput" placeholder="Message #general">
+    <button onclick="sendMessage()">Send</button>
+  </div>
+</div>
+
+
+<script type="module">
+import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm"
+
+
+const supabase = createClient(
+  "https://adrusttuicogkeplrcac.supabase.co",
+  "YOUR_PUBLIC_ANON_KEY"
+)
+
+
+let username = localStorage.getItem("username") || ""
+let currentChannel = "general"
+let isDM = false
+let dmUser = null
+
+
+if(!username){
+  while(!username) username = prompt("Enter username:")
+  localStorage.setItem("username",username)
+}
+
+
+await supabase.from("profiles").upsert({ username, bio:"", xp:0, level:1, coins:0 })
+
+
+/* ================= SEND MESSAGE ================= */
+window.sendMessage = async function(){
+  const input=document.getElementById("messageInput")
+  const text=input.value.trim()
+  if(!text) return
+  if(currentChannel==='stats'||currentChannel==='shop'){ alert("You cannot send messages in this channel!"); return }
+
+
+  await supabase.from("messages").insert({ channel: currentChannel, username, text })
+  input.value=""
+}
+
+
+/* ================= LOAD MESSAGES ================= */
+async function loadMessages(){
+  const { data } = await supabase.from("messages").select("*").eq("channel",currentChannel).order("created_at",{ascending:true})
+  const container=document.getElementById("messages")
+  container.innerHTML=""
+  data?.forEach(msg=>{
+    const div=document.createElement("div")
+    div.className="message"
+    div.innerHTML=`<span class="username">${msg.username}</span> ${msg.text}`
+    container.appendChild(div)
+  })
+  container.scrollTop=container.scrollHeight
+}
+
+
+/* ================= STATS ================= */
+async function loadStats(){
+  const { data: profile } = await supabase.from("profiles").select("*").eq("username",username).maybeSingle()
+  const container=document.getElementById("messages")
+  container.innerHTML=""
+  if(profile){
+    container.innerHTML=`
+      <div class="message">
+      <strong>Username:</strong> ${profile.username}<br>
+      <strong>Level:</strong> ${profile.level}<br>
+      <strong>XP:</strong> ${profile.xp}<br>
+      <strong>Coins:</strong> ${profile.coins}
+      </div>`
+  }
+}
+
+
+/* ================= SHOP ================= */
+async function loadShop(){
+  const container=document.getElementById("messages")
+  container.innerHTML=""
+
+
+  const items=[
+    { name:"Snake Game", description:"Play the classic Snake game!", cost:25, id:"snake-game" },
+    { name:"Cool Hat", description:"Just looks cool.", cost:10, id:"cool-hat" },
+    { name:"VIP Badge", description:"Shows you are special.", cost:50, id:"vip-badge" }
+  ]
+
+
+  items.forEach(item=>{
+    const div=document.createElement("div")
+    div.className="message"
+    div.innerHTML=`
+      <strong>${item.name}</strong><br>
+      ${item.description}<br>
+      <strong>Cost:</strong> ${item.cost} coins<br>
+      <button onclick="buyItem('${item.id}', ${item.cost})">Buy</button>
+      <div id="item-${item.id}"></div>
+    `
+    container.appendChild(div)
+  })
+}
+
+
+/* ================= BUY SYSTEM ================= */
+window.buyItem = async function(itemId, cost){
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("coins")
+    .eq("username", username)
+    .maybeSingle()
+
+
+  if(!profile) return
+
+
+  if(profile.coins < cost){
+    alert("Not enough coins!")
+    return
+  }
+
+
+  await supabase
+    .from("profiles")
+    .update({ coins: profile.coins - cost })
+    .eq("username", username)
+
+
+  const container = document.getElementById("item-" + itemId)
+
+
+  if(itemId === "snake-game"){
+    container.innerHTML = `<iframe src="snake.html" width="300" height="400"></iframe>`
+  }
+  else if(itemId === "cool-hat"){
+    container.innerHTML = "🎩 You bought a Cool Hat!"
+  }
+  else if(itemId === "vip-badge"){
+    container.innerHTML = "🌟 You bought VIP Badge!"
+  }
+}
+
+
+/* ================= SWITCH CHANNEL ================= */
+window.switchChannel = async function(channel){
+  currentChannel=channel
+  document.getElementById("channelName").innerText="# "+channel
+  document.getElementById("messageInput").placeholder=
+    (channel==='stats'||channel==='shop')?"":"Message #"+channel
+
+
+  if(channel==='stats') loadStats()
+  else if(channel==='shop') loadShop()
+  else loadMessages()
+}
+
+
+/* ================= INITIAL LOAD ================= */
+loadMessages()
+</script>
+</body>
+</html>
