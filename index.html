@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -27,7 +27,6 @@ button:hover { background:#5865f2; }
 </head>
 <body>
 
-
 <div class="sidebar">
   <h3>TEXT CHANNELS</h3>
   <div class="channel" onclick="switchChannel('general')"># general</div>
@@ -38,7 +37,6 @@ button:hover { background:#5865f2; }
   <div class="edit-profile" onclick="openProfileEditor()">⚙ Edit Profile</div>
 </div>
 
-
 <div class="chat">
   <div class="header" id="channelName"># general</div>
   <div class="messages" id="messages"></div>
@@ -48,67 +46,69 @@ button:hover { background:#5865f2; }
   </div>
 </div>
 
-
 <script type="module">
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm"
 
-
+// ==== REPLACE WITH YOUR SUPABASE URL AND ANON PUBLIC KEY ====
 const supabase = createClient(
-  "https://adrusttuicogkeplrcac.supabase.co",
-  "YOUR_PUBLIC_ANON_KEY"
+  "https://kmaledgymmivvfagdssf.supabase.co",      // Your Supabase project URL
+  "PASTE_YOUR_ANON_PUBLIC_KEY_HERE"               // Your anon public key
 )
-
 
 let username = localStorage.getItem("username") || ""
 let currentChannel = "general"
-let isDM = false
-let dmUser = null
 
-
+// ==== PROMPT FOR USERNAME IF EMPTY ====
 if(!username){
   while(!username) username = prompt("Enter username:")
   localStorage.setItem("username",username)
 }
 
-
+// ==== UPLOAD USER PROFILE IF NOT EXIST ====
 await supabase.from("profiles").upsert({ username, bio:"", xp:0, level:1, coins:0 })
 
-
-/* ================= SEND MESSAGE ================= */
+// ==== SEND MESSAGE ====
 window.sendMessage = async function(){
-  const input=document.getElementById("messageInput")
-  const text=input.value.trim()
+  const input = document.getElementById("messageInput")
+  const text = input.value.trim()
   if(!text) return
-  if(currentChannel==='stats'||currentChannel==='shop'){ alert("You cannot send messages in this channel!"); return }
-
-
+  if(currentChannel==='stats'||currentChannel==='shop'){
+    alert("You cannot send messages in this channel!"); 
+    return
+  }
   await supabase.from("messages").insert({ channel: currentChannel, username, text })
   input.value=""
+  loadMessages()
 }
 
-
-/* ================= LOAD MESSAGES ================= */
+// ==== LOAD MESSAGES ====
 async function loadMessages(){
-  const { data } = await supabase.from("messages").select("*").eq("channel",currentChannel).order("created_at",{ascending:true})
-  const container=document.getElementById("messages")
+  const { data } = await supabase
+    .from("messages")
+    .select("*")
+    .eq("channel",currentChannel)
+    .order("created_at",{ascending:true})
+  
+  const container = document.getElementById("messages")
   container.innerHTML=""
   data?.forEach(msg=>{
-    const div=document.createElement("div")
+    const div = document.createElement("div")
     div.className="message"
     div.innerHTML=`<span class="username">${msg.username}</span> ${msg.text}`
     container.appendChild(div)
   })
-  container.scrollTop=container.scrollHeight
+  container.scrollTop = container.scrollHeight
 }
 
-
-/* ================= STATS ================= */
+// ==== LOAD STATS ====
 async function loadStats(){
-  const { data: profile } = await supabase.from("profiles").select("*").eq("username",username).maybeSingle()
-  const container=document.getElementById("messages")
+  const { data: profile } = await supabase.from("profiles")
+    .select("*").eq("username",username).maybeSingle()
+  
+  const container = document.getElementById("messages")
   container.innerHTML=""
   if(profile){
-    container.innerHTML=`
+    container.innerHTML = `
       <div class="message">
       <strong>Username:</strong> ${profile.username}<br>
       <strong>Level:</strong> ${profile.level}<br>
@@ -118,12 +118,10 @@ async function loadStats(){
   }
 }
 
-
-/* ================= SHOP ================= */
+// ==== LOAD SHOP ====
 async function loadShop(){
   const container=document.getElementById("messages")
   container.innerHTML=""
-
 
   const items=[
     { name:"Snake Game", description:"Play the classic Snake game!", cost:25, id:"snake-game" },
@@ -131,11 +129,10 @@ async function loadShop(){
     { name:"VIP Badge", description:"Shows you are special.", cost:50, id:"vip-badge" }
   ]
 
-
   items.forEach(item=>{
-    const div=document.createElement("div")
+    const div = document.createElement("div")
     div.className="message"
-    div.innerHTML=`
+    div.innerHTML = `
       <strong>${item.name}</strong><br>
       ${item.description}<br>
       <strong>Cost:</strong> ${item.cost} coins<br>
@@ -146,8 +143,7 @@ async function loadShop(){
   })
 }
 
-
-/* ================= BUY SYSTEM ================= */
+// ==== BUY ITEMS ====
 window.buyItem = async function(itemId, cost){
   const { data: profile } = await supabase
     .from("profiles")
@@ -155,52 +151,40 @@ window.buyItem = async function(itemId, cost){
     .eq("username", username)
     .maybeSingle()
 
-
   if(!profile) return
-
-
   if(profile.coins < cost){
     alert("Not enough coins!")
     return
   }
 
-
-  await supabase
-    .from("profiles")
+  await supabase.from("profiles")
     .update({ coins: profile.coins - cost })
     .eq("username", username)
 
-
   const container = document.getElementById("item-" + itemId)
-
-
-  if(itemId === "snake-game"){
-    container.innerHTML = `<iframe src="snake.html" width="300" height="400"></iframe>`
-  }
-  else if(itemId === "cool-hat"){
-    container.innerHTML = "🎩 You bought a Cool Hat!"
-  }
-  else if(itemId === "vip-badge"){
-    container.innerHTML = "🌟 You bought VIP Badge!"
-  }
+  if(itemId==="snake-game") container.innerHTML=`<iframe src="snake.html" width="300" height="400"></iframe>`
+  else if(itemId==="cool-hat") container.innerHTML="🎩 You bought a Cool Hat!"
+  else if(itemId==="vip-badge") container.innerHTML="🌟 You bought VIP Badge!"
 }
 
-
-/* ================= SWITCH CHANNEL ================= */
+// ==== SWITCH CHANNEL ====
 window.switchChannel = async function(channel){
-  currentChannel=channel
-  document.getElementById("channelName").innerText="# "+channel
-  document.getElementById("messageInput").placeholder=
-    (channel==='stats'||channel==='shop')?"":"Message #"+channel
-
+  currentChannel = channel
+  document.getElementById("channelName").innerText = "# " + channel
+  document.getElementById("messageInput").placeholder =
+    (channel==='stats'||channel==='shop') ? "" : "Message #" + channel
 
   if(channel==='stats') loadStats()
   else if(channel==='shop') loadShop()
   else loadMessages()
 }
 
+// ==== ENTER KEY SEND ====
+document.getElementById("messageInput").addEventListener("keydown", e=>{
+  if(e.key==="Enter") sendMessage()
+})
 
-/* ================= INITIAL LOAD ================= */
+// ==== INITIAL LOAD ====
 loadMessages()
 </script>
 </body>
