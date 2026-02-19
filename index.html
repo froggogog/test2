@@ -51,8 +51,8 @@ import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 
 // ==== REPLACE WITH YOUR SUPABASE URL AND ANON PUBLIC KEY ====
 const supabase = createClient(
-  "https://kmaledgymmivvfagdssf.supabase.co",      // Your Supabase project URL
-  "PASTE_YOUR_ANON_PUBLIC_KEY_HERE"               // Your anon public key
+  "https://kmaledgymmivvfagdssf.supabase.co",   // Your Supabase project URL
+  "PASTE_YOUR_ANON_PUBLIC_KEY_HERE"            // Your anon public key
 )
 
 let username = localStorage.getItem("username") || ""
@@ -61,14 +61,15 @@ let currentChannel = "general"
 // ==== PROMPT FOR USERNAME IF EMPTY ====
 if(!username){
   while(!username) username = prompt("Enter username:")
-  localStorage.setItem("username",username)
+  localStorage.setItem("username", username)
 }
 
 // ==== UPLOAD USER PROFILE IF NOT EXIST ====
 async function upsertProfile(){
   try{
-    await supabase.from("profiles").upsert({ username, bio:"", xp:0, level:1, coins:0 })
-  }catch(err){ console.error("Profile upsert failed:", err) }
+    const { error } = await supabase.from("profiles").upsert({ username, bio:"", xp:0, level:1, coins:0 })
+    if(error) console.error("Profile upsert failed:", error)
+  }catch(err){ console.error(err) }
 }
 upsertProfile()
 
@@ -81,7 +82,11 @@ window.sendMessage = async function(){
     if(currentChannel==='stats'||currentChannel==='shop'){ alert("Cannot send here"); return; }
 
     const { error } = await supabase.from("messages").insert({ channel: currentChannel, username, text })
-    if(error) throw error
+    if(error){
+      console.error("Send failed:", error)
+      alert("Failed to send message. Check console for details.")
+      return
+    }
 
     input.value = ""
     loadMessages()
@@ -93,12 +98,11 @@ window.sendMessage = async function(){
 // ==== LOAD MESSAGES ====
 async function loadMessages(){
   try{
-    const { data, error } = await supabase
-      .from("messages")
-      .select("*")
-      .eq("channel", currentChannel)
-      .order("created_at",{ ascending:true })
-    if(error) throw error
+    const { data, error } = await supabase.from("messages").select("*").eq("channel", currentChannel).order("created_at",{ ascending:true })
+    if(error){
+      console.error("Load messages failed:", error)
+      return
+    }
 
     const container = document.getElementById("messages")
     container.innerHTML=""
@@ -109,9 +113,7 @@ async function loadMessages(){
       container.appendChild(div)
     })
     container.scrollTop = container.scrollHeight
-  }catch(err){
-    console.error("Failed to load messages:", err)
-  }
+  }catch(err){ console.error("Failed to load messages:", err) }
 }
 
 // ==== LOAD STATS ====
@@ -119,7 +121,6 @@ async function loadStats(){
   try{
     const { data: profile, error } = await supabase.from("profiles").select("*").eq("username",username).maybeSingle()
     if(error) throw error
-
     const container = document.getElementById("messages")
     container.innerHTML=""
     if(profile){
@@ -138,13 +139,11 @@ async function loadStats(){
 async function loadShop(){
   const container=document.getElementById("messages")
   container.innerHTML=""
-
   const items=[
     { name:"Snake Game", description:"Play the classic Snake game!", cost:25, id:"snake-game" },
     { name:"Cool Hat", description:"Just looks cool.", cost:10, id:"cool-hat" },
     { name:"VIP Badge", description:"Shows you are special.", cost:50, id:"vip-badge" }
   ]
-
   items.forEach(item=>{
     const div = document.createElement("div")
     div.className="message"
@@ -168,7 +167,6 @@ window.buyItem = async function(itemId, cost){
     if(profile.coins < cost){ alert("Not enough coins!"); return }
 
     await supabase.from("profiles").update({ coins: profile.coins - cost }).eq("username", username)
-
     const container = document.getElementById("item-" + itemId)
     if(itemId==="snake-game") container.innerHTML=`<iframe src="snake.html" width="300" height="400"></iframe>`
     else if(itemId==="cool-hat") container.innerHTML="🎩 You bought a Cool Hat!"
@@ -203,7 +201,6 @@ supabase
 
 // ==== INITIAL LOAD ====
 loadMessages()
-
 </script>
 </body>
 </html>
